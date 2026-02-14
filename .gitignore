@@ -4,3 +4,5 @@ output/
 result.json
 .env
 cache/
+__pycache__/
+*.pyc
