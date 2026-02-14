@@ -1,52 +1,43 @@
 # Bill_v2
 
-AI 驱动的信息雷达 + 机会发现系统。
+AI 驱动的客户发现系统 — 分析产品，找到客户。
 
-由 Alan（Claude Code Agent）自主运行，每天扫描 GitHub 和 Twitter，从噪音中提炼信号，告诉你什么值得关注、什么可能机会。
+由 Alan（Claude Code Agent）驱动，分析你的产品生成理想客户画像，然后在企业数据库中找到匹配的潜在客户。
 
-## 三个模块
+## 两个 Agent
 
-| 模块 | 做什么 |
-|------|--------|
-| **GitHub Learning** | 扫描 GitHub Trending，发现高价值开源项目 |
-| **Twitter AI Radar** | 追踪美中日三国 AI 领域关键人物动态 |
-| **Money Signal** | 从上述信息中提炼商业机会 |
+| Agent | 做什么 |
+|-------|--------|
+| **ICP 分析** | 分析用户产品，生成理想客户画像 |
+| **客户匹配** | 基于 ICP，在企业数据库中查找匹配企业 |
 
-GitHub + Twitter 是信息输入层，Money Signal 是处理层。
+ICP 分析是输入层，客户匹配是执行层。
 
 ## 项目结构
 
 ```
 CLAUDE.md            # Alan 的灵魂（人格 + 工作协议）
 context/             # 产品和用户上下文
-.features/           # 三个功能模块的记忆和数据
-  github-learning/
-  twitter-ai-radar/
-  money-signal/
-loop/                # 循环运行状态
-scheduler/           # 定时任务编排
-  run-task.sh        # 多 Agent 编排器
-  agents/            # 4 个 Agent prompt
-  send-email.sh      # 邮件通知
+data/                # 企业数据库（md 格式）
+.features/           # 两个功能模块的记忆和数据
+  icp-analysis/
+  customer-match/
+loop/                # 运行状态
 ```
 
 ## 使用方式
 
-手动触发（在 Claude Code 中）：
+在 Claude Code 中：
 
 ```
-/radar    — 完整循环：GitHub → Twitter → 信号分析
-/github   — 只扫 GitHub
-/twitter  — 只看 Twitter
-/signal   — 只分析赚钱信号
+/icp           — 描述你的产品，生成理想客户画像
+/find-customer — 基于 ICP 在企业数据库中查找匹配客户
 ```
-
-自动触发：通过 macOS launchd 定时执行多 Agent 并行编排。
 
 ## 设计哲学
 
-- **递弱代偿** — 人的注意力有限，用 AI 的计算能力补偿
-- **信号优先于噪音** — 不堆信息量，只说值得说的
+- **递弱代偿** — 人翻不完上万家企业，用 AI 的分析能力补偿
+- **精准优先于数量** — 推荐 10 个靠谱的，好过 100 个不靠谱的
 - **文件即记忆** — Agent 没有连续记忆，用文件系统代偿
 
 ## 作者
