@@ -3,7 +3,7 @@ name: find-customer
 description: |
   快速构建B2B客户画像。分析用户提供的官网/资料后，先做竞品分析找到产品的独特定位，
   再基于定位输出精准画像草案，用户选择修改的过程中追问根因，
-  最终输出日本市场筛选条件（JSON格式）。
+  最终输出日本市场 ICP 画像（MD + 嵌入 JSON），保存至 .features/find-customer/data/。
 
   触发场景：用户提供官网URL、产品资料，或询问"帮我找客户"、
   "我的产品应该卖给谁"等问题时使用此技能。
@@ -361,12 +361,51 @@ Q3: 官网说"全行业"怎么办？
 - 地域限制（是硬性要求还是方便拜访）
 - 资本金/成立年份（如果有特殊要求）
 
-### Step 5: 输出JSON
-所有条件确认后，输出完整JSON。完整格式见 [references/output-schema.md](references/output-schema.md)。
-**输出路径**： 
-   工作目录下/result.json
-**说明**：
-   可以概要解释文件内容，但禁止在回复内容中，提及result.json文件名和原始json内容，改文件为内部系统使用，用户会实时看到文件解析后的"顧客像"。
+### Step 5: 输出 ICP 画像
+
+所有条件确认后，输出 ICP 画像文件。完整 JSON 字段格式见 [references/output-schema.md](references/output-schema.md)。
+
+**输出路径**：`.features/find-customer/data/YYYY-MM-DD-HHmmss.md`
+
+**输出格式（MD 文档）**：
+
+```markdown
+# ICP 客户画像
+> 生成时间：YYYY-MM-DD-HHmmss
+
+## 产品概要
+[一句话描述用户的产品]
+
+## 理想客户画像（ICP）
+
+**地域**：[都道府県名]
+
+**行业**：[行业名(代码)]
+
+**规模**：[描述 + 員工数範囲]
+
+**成立年数**：[如有]
+
+**销售信号**：
+- [信号名]（weight: N）— [描述]
+
+**排序**：[排序方式]
+
+**说明**：[parseExplanation 的内容]
+
+## 筛选条件（JSON）
+
+​```json
+{ ... 完整 JSON ... }
+​```
+```
+
+**文件说明**：
+- MD 部分供人阅读，记录 ICP 画像的完整语境
+- JSON 部分供 customer-match skill 机器解析
+- 每次分析生成独立文件，用时间戳区分
+
+**记忆更新**：输出文件后，更新 `.features/find-customer/MEMORY.md` 的快速索引。
 
 **代码匹配规则**（必须参考 references 目录下的文档）：
 
@@ -387,23 +426,12 @@ Q3: 官网说"全行业"怎么办？
    - 用户提「スタートアップ」→ `ESTABLISHMENT_AT_DESC`
    - 无明确指示则不添加
 
-**输出格式**：
-```json
-{
-  "prefectureIds": [13, 14],
-  "categoryCodes": ["E", "G"],
-  "minCapitalStock": 50000000,
-  "maxCapitalStock": 1000000000,
-  "minEmployeeNumber": 100,
-  "maxEmployeeNumber": 1000,
-  "enhancedConditions": [
-    { "name": "DX推進中", "description": "...", "conditionType": "ENTERPRISE_INFO", "weight": 4 },
-    { "name": "翻訳ツール需要", "description": "...", "conditionType": "PRODUCT_INFO", "weight": 5 }
-  ],
-  "orderBys": ["EMPLOYEE_NUMBER_DESC"],
-  "parseExplanation": "搜索条件的自然语言说明"
-}
-```
+**对话展示**：
+- 可以概要解释画像内容，但禁止在回复中提及文件名和原始 JSON 内容
+- 用户会实时看到文件解析后的"顧客像"
+
+**衔接提示**：输出完成后，告知用户：
+> 客户画像已生成。输入 `/customer-match` 开始在企业数据库中匹配客户。
 
 ## 工具使用
 

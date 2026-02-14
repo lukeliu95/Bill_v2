@@ -2,3 +2,5 @@
 logs/
 output/
 result.json
+.env
+cache/
