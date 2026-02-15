@@ -133,6 +133,9 @@ class KeyPerson(BaseModel):
     confidence: Literal["high", "medium", "low"] = Field(
         default="low", description="信息可信度"
     )
+    # 联系方式
+    email: Optional[str] = Field(None, description="邮箱地址")
+    phone: Optional[str] = Field(None, description="电话号码")
     # LinkedIn 扩展字段
     linkedin_url: Optional[str] = Field(None, description="LinkedIn 个人主页 URL")
     linkedin_summary: Optional[str] = Field(None, description="LinkedIn 个人简介")
@@ -353,10 +356,22 @@ class SignalsRaw(BaseModel):
     errors: list[str] = Field(default_factory=list, description="收集过程中的错误")
 
 
+class SocialMediaRaw(BaseModel):
+    """社交媒体数据收集器输出"""
+    instagram: Optional[dict] = Field(None, description="Instagram 数据 (profile + recent posts)")
+    facebook: Optional[dict] = Field(None, description="Facebook 数据 (page info + recent posts)")
+    tiktok: Optional[dict] = Field(None, description="TikTok 数据 (profile + recent posts)")
+    twitter: Optional[dict] = Field(None, description="X/Twitter 数据 (profile + recent posts)")
+    youtube: Optional[dict] = Field(None, description="YouTube 数据 (channel + recent videos)")
+    reddit: Optional[dict] = Field(None, description="Reddit 相关帖子")
+    errors: list[str] = Field(default_factory=list, description="收集过程中的错误")
+
+
 class CollectedData(BaseModel):
     """所有收集器的汇总输出"""
     seed: SeedData = Field(..., description="原始种子数据")
     basic_info: BasicInfoRaw = Field(default_factory=BasicInfoRaw)
     sales_intel: SalesIntelRaw = Field(default_factory=SalesIntelRaw)
     signals: SignalsRaw = Field(default_factory=SignalsRaw)
+    social_media: Optional[SocialMediaRaw] = Field(None, description="社交媒体数据")
     collected_at: datetime = Field(default_factory=datetime.now)

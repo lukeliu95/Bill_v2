@@ -197,6 +197,12 @@ def _render_layer2(report: EnterpriseReport) -> str:
             if kp.approach_hint:
                 lines.append(f"**アプローチヒント**: {kp.approach_hint}")
                 lines.append("")
+            if kp.email:
+                lines.append(f"**メール**: {kp.email}")
+                lines.append("")
+            if kp.phone:
+                lines.append(f"**電話**: {kp.phone}")
+                lines.append("")
             if kp.linkedin_url:
                 lines.append(f"**LinkedIn**: {kp.linkedin_url}")
                 lines.append("")

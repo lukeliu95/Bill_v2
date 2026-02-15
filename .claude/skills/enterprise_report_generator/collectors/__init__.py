@@ -11,6 +11,10 @@ from .linkedin_collector import (
     KeyPersonCandidate,
     collect_linkedin_data,
 )
+from .social_media_collector import (
+    SocialMediaCollector,
+    collect_social_media,
+)
 
 __all__ = [
     "BaseCollector",
@@ -26,4 +30,7 @@ __all__ = [
     "LinkedInData",
     "KeyPersonCandidate",
     "collect_linkedin_data",
+    # Social Media
+    "SocialMediaCollector",
+    "collect_social_media",
 ]

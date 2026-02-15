@@ -54,16 +54,21 @@ class CrawlerConfig:
 
 @dataclass
 class BrightDataConfig:
-    """Bright Data MCP 配置 (LinkedIn 数据采集)"""
+    """Bright Data MCP 配置 (LinkedIn + 社交媒体数据采集)"""
     api_key: str = field(default_factory=lambda: os.getenv("BRIGHT_DATA_API_KEY", ""))
     user_id: str = field(default_factory=lambda: os.getenv("BRIGHT_DATA_USER_ID", ""))
     mcp_server_url: str = "https://mcp.brightdata.com/sse"
     timeout: int = 60
     max_retries: int = 3
-    # 每次请求最多获取的员工数
+    # LinkedIn 配置
     max_employees_per_request: int = 50
-    # 关键人物详情采集的最大数量
     max_key_persons: int = 10
+    # 社交媒体配置
+    enable_social_media: bool = True
+    max_posts_per_platform: int = 5
+    social_platforms: list = field(default_factory=lambda: [
+        "instagram", "facebook", "tiktok", "twitter", "youtube", "reddit"
+    ])
 
     @property
     def mcp_url_with_token(self) -> str:
@@ -143,6 +148,14 @@ class Config:
         """检查是否配置了 LinkedIn 数据采集"""
         return bool(self.brightdata.api_key and self.brightdata.user_id)
 
+    def has_social_media_config(self) -> bool:
+        """检查是否配置了社交媒体数据采集"""
+        return (
+            bool(self.brightdata.api_key)
+            and self.brightdata.enable_social_media
+            and bool(self.brightdata.social_platforms)
+        )
+
     def ensure_dirs(self):
         """确保必要目录存在"""
         self.cache.cache_dir.mkdir(parents=True, exist_ok=True)
@@ -181,3 +194,10 @@ if __name__ == "__main__":
         print(f"  - MCP URL: {cfg.brightdata.mcp_server_url}")
     else:
         print("\n⚠ LinkedIn 数据采集未配置 (可选功能)")
+
+    if cfg.has_social_media_config():
+        print(f"\n✓ 社交媒体数据采集已启用")
+        print(f"  - 平台: {', '.join(cfg.brightdata.social_platforms)}")
+        print(f"  - 每平台最大帖子数: {cfg.brightdata.max_posts_per_platform}")
+    else:
+        print("\n⚠ 社交媒体数据采集未启用")

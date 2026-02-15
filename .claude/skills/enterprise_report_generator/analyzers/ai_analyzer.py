@@ -50,6 +50,7 @@ from ..prompts import (
     build_sales_approach_prompt,
     SIGNALS_SYSTEM,
     build_signals_prompt,
+    build_social_media_section,
 )
 
 logger = logging.getLogger(__name__)
@@ -86,8 +87,8 @@ class AIAnalyzer:
         # Step 2: 分析销售路径 (依赖 layer1)
         layer2 = await self._analyze_sales_approach(layer1, collected_data.sales_intel)
 
-        # Step 3: 分析商机信号 (依赖 layer1)
-        layer3 = await self._analyze_signals(layer1, collected_data.signals)
+        # Step 3: 分析商机信号 (依赖 layer1，含社交媒体数据)
+        layer3 = await self._analyze_signals(layer1, collected_data.signals, collected_data.social_media)
 
         # 构建完整报告
         now = datetime.now()
@@ -199,6 +200,7 @@ class AIAnalyzer:
         self,
         layer1: Layer1BasicInfo,
         signals_raw,
+        social_media_raw=None,
     ) -> Layer3Signals:
         """分析商机信号"""
         logger.info("[AIAnalyzer] 分析商机信号...")
@@ -215,6 +217,12 @@ class AIAnalyzer:
             basic_info=layer1.model_dump(),
             signals_raw=signals_raw.model_dump(),
         )
+
+        # 如果有社交媒体数据，追加到 prompt
+        if social_media_raw:
+            social_section = build_social_media_section(social_media_raw.model_dump())
+            if social_section:
+                prompt += "\n\n" + social_section
 
         async with GeminiClient() as client:
             ai_result, error = await client.generate_json(
@@ -421,6 +429,9 @@ class AIAnalyzer:
                     approach_hint=kp.get("approach_hint"),
                     linkedin_search_query=kp.get("linkedin_search_query"),
                     confidence=self._normalize_confidence(kp.get("confidence", "low")),
+                    # 联系方式
+                    email=kp.get("email"),
+                    phone=kp.get("phone"),
                     # LinkedIn 扩展字段
                     linkedin_url=kp.get("linkedin_url"),
                     linkedin_summary=kp.get("linkedin_summary"),

@@ -1,15 +1,19 @@
 """
-Bright Data API 客户端 (LinkedIn 数据采集)
+Bright Data API 客户端 (LinkedIn + 社交媒体数据采集)
 
 支持的数据类型:
-- 公司资料 + 员工概览
-- 个人详细资料
-- 人员搜索
+- LinkedIn: 公司资料 + 员工概览 / 个人详细资料 / 人员搜索
+- Instagram: Profiles / Posts / Reels / Comments
+- Facebook: Posts (Profile/Group/URL) / Comments / Reels
+- TikTok: Profiles / Posts / Comments
+- X/Twitter: Profiles / Posts
+- YouTube: Profiles / Videos / Comments
+- Reddit: Posts / Comments
 """
 import httpx
 import logging
 from typing import Optional, Any
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from ..config import get_config
 
@@ -67,6 +71,39 @@ class LinkedInPersonProfile:
             self.skills = []
 
 
+@dataclass
+class SocialProfile:
+    """社交媒体账号资料"""
+    platform: str  # instagram, facebook, tiktok, twitter, youtube, reddit
+    url: str
+    name: Optional[str] = None
+    username: Optional[str] = None
+    description: Optional[str] = None
+    followers: Optional[int] = None
+    following: Optional[int] = None
+    posts_count: Optional[int] = None
+    verified: Optional[bool] = None
+    profile_image: Optional[str] = None
+    external_url: Optional[str] = None
+    raw_data: Optional[dict] = None
+
+
+@dataclass
+class SocialPost:
+    """社交媒体帖子/视频"""
+    platform: str
+    url: Optional[str] = None
+    title: Optional[str] = None
+    content: Optional[str] = None
+    date: Optional[str] = None
+    likes: Optional[int] = None
+    comments: Optional[int] = None
+    shares: Optional[int] = None
+    views: Optional[int] = None
+    media_type: Optional[str] = None  # image, video, text, reel
+    raw_data: Optional[dict] = None
+
+
 class BrightDataClient:
     """Bright Data API 客户端
 
@@ -76,11 +113,55 @@ class BrightDataClient:
     # Bright Data Web Scraper API 端点
     BASE_URL = "https://api.brightdata.com/datasets/v3/trigger"
 
-    # 数据集 ID (LinkedIn 专用)
-    # 参考: https://docs.brightdata.com/api-reference/web-scraper-api/social-media-apis/linkedin
+    # === LinkedIn 数据集 ID ===
     DATASET_COMPANY_PROFILE = "gd_l1vikfnt1wgvvqz95w"  # LinkedIn Company Profile
     DATASET_PERSON_PROFILE = "gd_l1viktl72bvl7bjuj0"   # LinkedIn Person Profile
     DATASET_PEOPLE_SEARCH = "gd_l1viktl72bvl7bjv1u"    # LinkedIn People Search
+
+    # === 社交媒体数据集 ID ===
+    # Instagram
+    DATASET_INSTAGRAM_PROFILES = "gd_l1vikfch901nx3by4"
+    DATASET_INSTAGRAM_POSTS = "gd_lk5ns7kz21pck8jpis"
+    DATASET_INSTAGRAM_REELS = "gd_lyclm20il4r5helnj"
+    DATASET_INSTAGRAM_COMMENTS = "gd_ltppn085pokosxh13"
+    # Facebook
+    DATASET_FACEBOOK_POSTS_PROFILE = "gd_lkaxegm826bjpoo9m5"
+    DATASET_FACEBOOK_POSTS_GROUP = "gd_lz11l67o2cb3r0lkj3"
+    DATASET_FACEBOOK_POSTS_URL = "gd_lyclm1571iy3mv57zw"
+    DATASET_FACEBOOK_COMMENTS = "gd_lkay758p1eanlolqw8"
+    DATASET_FACEBOOK_REELS = "gd_lyclm3ey2q6rww027t"
+    # TikTok
+    DATASET_TIKTOK_PROFILES = "gd_l1villgoiiidt09ci"
+    DATASET_TIKTOK_POSTS = "gd_lu702nij2f790tmv9h"
+    DATASET_TIKTOK_COMMENTS = "gd_lkf2st302ap89utw5k"
+    # X/Twitter
+    DATASET_TWITTER_PROFILES = "gd_lwxmeb2u1cniijd7t4"
+    DATASET_TWITTER_POSTS = "gd_lwxkxvnf1cynvib9co"
+    # YouTube
+    DATASET_YOUTUBE_PROFILES = "gd_lk538t2k2p1k3oos71"
+    DATASET_YOUTUBE_VIDEOS = "gd_lk56epmy2i5g7lzu0k"
+    DATASET_YOUTUBE_COMMENTS = "gd_lk9q0ew71spt1mxywf"
+    # Reddit
+    DATASET_REDDIT_POSTS = "gd_lvz8ah06191smkebj4"
+    DATASET_REDDIT_COMMENTS = "gd_lvzdpsdlw09j6t702"
+
+    # 平台 → Profile Dataset ID 映射
+    PLATFORM_PROFILE_DATASETS = {
+        "instagram": DATASET_INSTAGRAM_PROFILES,
+        "tiktok": DATASET_TIKTOK_PROFILES,
+        "twitter": DATASET_TWITTER_PROFILES,
+        "youtube": DATASET_YOUTUBE_PROFILES,
+    }
+
+    # 平台 → Posts Dataset ID 映射
+    PLATFORM_POSTS_DATASETS = {
+        "instagram": DATASET_INSTAGRAM_POSTS,
+        "facebook": DATASET_FACEBOOK_POSTS_URL,
+        "tiktok": DATASET_TIKTOK_POSTS,
+        "twitter": DATASET_TWITTER_POSTS,
+        "youtube": DATASET_YOUTUBE_VIDEOS,
+        "reddit": DATASET_REDDIT_POSTS,
+    }
 
     def __init__(self, config=None):
         self.config = config or get_config()
@@ -278,6 +359,147 @@ class BrightDataClient:
             phone=data.get("phone")
         )
 
+    # ================================================================
+    # 社交媒体采集方法
+    # ================================================================
+
+    async def get_social_profile(
+        self,
+        platform: str,
+        url: str,
+    ) -> Optional[SocialProfile]:
+        """获取社交媒体主页资料
+
+        Args:
+            platform: 平台名称 (instagram, tiktok, twitter, youtube)
+            url: 社交主页 URL
+
+        Returns:
+            SocialProfile 或 None
+        """
+        dataset_id = self.PLATFORM_PROFILE_DATASETS.get(platform)
+        if not dataset_id:
+            logger.warning(f"No profile dataset for platform: {platform}")
+            return None
+
+        logger.info(f"Fetching {platform} profile: {url}")
+        inputs = [{"url": url}]
+        result = await self._make_request(dataset_id, inputs)
+
+        if not result or not isinstance(result, list) or len(result) == 0:
+            return None
+
+        data = result[0] if isinstance(result, list) else result
+        return self._parse_social_profile(platform, url, data)
+
+    async def get_social_posts(
+        self,
+        platform: str,
+        url: str,
+        limit: int = 5,
+    ) -> list[SocialPost]:
+        """获取社交媒体帖子/视频列表
+
+        Args:
+            platform: 平台名称 (instagram, facebook, tiktok, twitter, youtube, reddit)
+            url: 主页 URL 或搜索关键词
+            limit: 返回数量限制
+
+        Returns:
+            SocialPost 列表
+        """
+        dataset_id = self.PLATFORM_POSTS_DATASETS.get(platform)
+        if not dataset_id:
+            logger.warning(f"No posts dataset for platform: {platform}")
+            return []
+
+        logger.info(f"Fetching {platform} posts: {url} (limit={limit})")
+        # 只发送 URL，不发送 num_of_posts（部分平台不支持该参数会返回400）
+        inputs = [{"url": url}]
+        result = await self._make_request(dataset_id, inputs)
+
+        if not result:
+            return []
+
+        results = result if isinstance(result, list) else [result]
+        posts = []
+        for item in results[:limit]:
+            if isinstance(item, dict):
+                post = self._parse_social_post(platform, item)
+                if post:
+                    posts.append(post)
+
+        return posts
+
+    def _parse_social_profile(
+        self, platform: str, url: str, data: dict
+    ) -> SocialProfile:
+        """解析社交媒体主页数据为统一格式"""
+        # 各平台字段映射（BrightData 返回字段不同）
+        followers_keys = ["followers", "follower_count", "subscribers", "subscriber_count"]
+        following_keys = ["following", "following_count", "friends_count"]
+        posts_keys = ["posts_count", "media_count", "video_count", "statuses_count"]
+        name_keys = ["name", "full_name", "display_name", "title"]
+        username_keys = ["username", "screen_name", "handle", "custom_url"]
+        desc_keys = ["description", "biography", "bio", "about"]
+
+        def _first_val(keys):
+            for k in keys:
+                v = data.get(k)
+                if v is not None:
+                    return v
+            return None
+
+        return SocialProfile(
+            platform=platform,
+            url=url,
+            name=_first_val(name_keys),
+            username=_first_val(username_keys),
+            description=_first_val(desc_keys),
+            followers=_first_val(followers_keys),
+            following=_first_val(following_keys),
+            posts_count=_first_val(posts_keys),
+            verified=data.get("verified") or data.get("is_verified"),
+            profile_image=data.get("profile_image") or data.get("profile_pic_url") or data.get("avatar"),
+            external_url=data.get("external_url") or data.get("website"),
+            raw_data=data,
+        )
+
+    def _parse_social_post(self, platform: str, data: dict) -> Optional[SocialPost]:
+        """解析社交媒体帖子为统一格式"""
+        likes_keys = ["likes", "like_count", "digg_count", "favorite_count"]
+        comments_keys = ["comments", "comment_count", "comments_count", "reply_count"]
+        shares_keys = ["shares", "share_count", "retweet_count", "reposts"]
+        views_keys = ["views", "view_count", "play_count", "video_view_count"]
+        content_keys = ["text", "content", "caption", "description", "body"]
+        title_keys = ["title", "heading"]
+        date_keys = ["date", "created_at", "timestamp", "published_at", "upload_date"]
+
+        def _first_val(keys):
+            for k in keys:
+                v = data.get(k)
+                if v is not None:
+                    return v
+            return None
+
+        return SocialPost(
+            platform=platform,
+            url=data.get("url") or data.get("post_url") or data.get("link"),
+            title=_first_val(title_keys),
+            content=_first_val(content_keys),
+            date=str(_first_val(date_keys)) if _first_val(date_keys) else None,
+            likes=_first_val(likes_keys),
+            comments=_first_val(comments_keys),
+            shares=_first_val(shares_keys),
+            views=_first_val(views_keys),
+            media_type=data.get("media_type") or data.get("type"),
+            raw_data=data,
+        )
+
+    # ================================================================
+    # LinkedIn 采集方法
+    # ================================================================
+
     async def search_people(
         self,
         company_name: str,
@@ -341,3 +563,15 @@ async def get_person_linkedin_data(linkedin_url: str) -> Optional[LinkedInPerson
     """获取个人 LinkedIn 数据的便捷函数"""
     client = BrightDataClient()
     return await client.get_person_profile(linkedin_url)
+
+
+async def get_social_profile_data(platform: str, url: str) -> Optional[SocialProfile]:
+    """获取社交媒体主页数据的便捷函数"""
+    client = BrightDataClient()
+    return await client.get_social_profile(platform, url)
+
+
+async def get_social_posts_data(platform: str, url: str, limit: int = 5) -> list[SocialPost]:
+    """获取社交媒体帖子的便捷函数"""
+    client = BrightDataClient()
+    return await client.get_social_posts(platform, url, limit)

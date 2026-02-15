@@ -51,7 +51,7 @@ class DataExporter:
 
         # 创建企业目录
         company_dir = self.output_dir / seed.company_name
-        for subdir in ["company", "people", "news", "signals", "website"]:
+        for subdir in ["company", "people", "news", "signals", "website", "social_media"]:
             (company_dir / subdir).mkdir(parents=True, exist_ok=True)
 
         # 导出各维度
@@ -60,6 +60,7 @@ class DataExporter:
         self._export_news(company_dir / "news", ts_hour, collected_data, report)
         self._export_signals(company_dir / "signals", ts_hour, collected_data, report)
         self._export_website(company_dir / "website", ts_hour, collected_data)
+        self._export_social_media(company_dir / "social_media", ts_hour, collected_data)
 
         # 复制 AI 整合报告到企业目录
         from ..renderers import render_markdown
@@ -224,6 +225,10 @@ class DataExporter:
                     lines.append(f"- 信息可信度: {kp.confidence}")
                 if kp.source:
                     lines.append(f"- 数据来源: {kp.source}")
+                if kp.email:
+                    lines.append(f"- メール: {kp.email}")
+                if kp.phone:
+                    lines.append(f"- 電話: {kp.phone}")
                 if kp.linkedin_url:
                     lines.append(f"- LinkedIn: {kp.linkedin_url}")
                 if kp.linkedin_summary:
@@ -607,3 +612,101 @@ class DataExporter:
         filepath = dest / f"{ts}_官网内容.md"
         filepath.write_text("\n".join(lines), encoding="utf-8")
         logger.info(f"  官网内容: {filepath}")
+
+    # ================================================================
+    # 社交媒体
+    # ================================================================
+
+    def _export_social_media(
+        self, dest: Path, ts: str,
+        data: CollectedData,
+    ):
+        """导出社交媒体维度数据"""
+        seed = data.seed
+        sm = data.social_media
+        if not sm:
+            return
+
+        lines = []
+        lines.append(f"# ソーシャルメディア概要: {seed.company_name}")
+        lines.append(f"\n> 採集時間: {ts}")
+        lines.append(f"> データソース: BrightData Social Media API")
+        lines.append("")
+
+        platform_names = {
+            "instagram": "Instagram",
+            "facebook": "Facebook",
+            "tiktok": "TikTok",
+            "twitter": "X/Twitter",
+            "youtube": "YouTube",
+            "reddit": "Reddit",
+        }
+
+        has_data = False
+        for platform_key, platform_label in platform_names.items():
+            platform_data = getattr(sm, platform_key, None)
+            if not platform_data:
+                continue
+
+            has_data = True
+            lines.append(f"## {platform_label}")
+            lines.append("")
+
+            # Profile
+            profile = platform_data.get("profile")
+            if profile:
+                if profile.get("name"):
+                    lines.append(f"- アカウント名: {profile['name']}")
+                if profile.get("username"):
+                    lines.append(f"- ユーザー名: @{profile['username']}")
+                if profile.get("followers") is not None:
+                    lines.append(f"- フォロワー数: {profile['followers']:,}")
+                if profile.get("following") is not None:
+                    lines.append(f"- フォロー数: {profile['following']:,}")
+                if profile.get("posts_count") is not None:
+                    lines.append(f"- 投稿数: {profile['posts_count']:,}")
+                if profile.get("verified"):
+                    lines.append(f"- 認証済み: はい")
+                if profile.get("description"):
+                    lines.append(f"- プロフィール: {profile['description'][:300]}")
+                if profile.get("url"):
+                    lines.append(f"- URL: {profile['url']}")
+                lines.append("")
+
+            # Posts
+            posts = platform_data.get("posts", [])
+            if posts:
+                lines.append(f"### 最近の投稿 ({len(posts)}件)")
+                lines.append("")
+                for i, post in enumerate(posts, 1):
+                    title = post.get("title") or (post.get("content", "")[:80] if post.get("content") else "(内容なし)")
+                    date = post.get("date", "日付不明")
+                    lines.append(f"#### {i}. {title}")
+                    lines.append(f"- 日付: {date}")
+                    if post.get("likes") is not None:
+                        lines.append(f"- いいね: {post['likes']:,}")
+                    if post.get("comments") is not None:
+                        lines.append(f"- コメント: {post['comments']:,}")
+                    if post.get("shares") is not None:
+                        lines.append(f"- シェア: {post['shares']:,}")
+                    if post.get("views") is not None:
+                        lines.append(f"- 再生数: {post['views']:,}")
+                    if post.get("url"):
+                        lines.append(f"- URL: {post['url']}")
+                    lines.append("")
+
+        # エラー
+        if sm.errors:
+            lines.append("## 採集エラー")
+            lines.append("")
+            for err in sm.errors:
+                lines.append(f"- {err}")
+            lines.append("")
+
+        if not has_data and not sm.errors:
+            lines.append("(ソーシャルメディアアカウントが見つかりませんでした)")
+            lines.append("")
+
+        filepath = dest / f"{ts}_ソーシャルメディア.md"
+        filepath.write_text("\n".join(lines), encoding="utf-8")
+        logger.info(f"  ソーシャルメディア: {filepath}")

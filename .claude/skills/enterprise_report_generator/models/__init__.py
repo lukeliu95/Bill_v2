@@ -8,6 +8,7 @@ from .report_schema import (
     BasicInfoRaw,
     SalesIntelRaw,
     SignalsRaw,
+    SocialMediaRaw,
     CollectedData,
     # 报告结构
     EnterpriseReport,
@@ -56,6 +57,7 @@ __all__ = [
     "BasicInfoRaw",
     "SalesIntelRaw",
     "SignalsRaw",
+    "SocialMediaRaw",
     "CollectedData",
     # 报告结构
     "EnterpriseReport",

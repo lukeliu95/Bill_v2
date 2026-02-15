@@ -33,8 +33,12 @@ from .brightdata_client import (
     LinkedInCompanyProfile,
     LinkedInPersonProfile,
     LinkedInEmployee,
+    SocialProfile,
+    SocialPost,
     get_company_linkedin_data,
     get_person_linkedin_data,
+    get_social_profile_data,
+    get_social_posts_data,
 )
 
 __all__ = [
@@ -68,4 +72,9 @@ __all__ = [
     "LinkedInEmployee",
     "get_company_linkedin_data",
     "get_person_linkedin_data",
+    # Bright Data (Social Media)
+    "SocialProfile",
+    "SocialPost",
+    "get_social_profile_data",
+    "get_social_posts_data",
 ]

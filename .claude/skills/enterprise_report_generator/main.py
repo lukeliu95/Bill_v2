@@ -21,6 +21,7 @@ from .collectors import (
     BasicInfoCollector,
     SalesIntelCollector,
     SignalCollector,
+    SocialMediaCollector,
 )
 from .analyzers import AIAnalyzer
 from .validators.quality_checker import QualityChecker, QualityCheckResult
@@ -123,30 +124,42 @@ class ReportGenerator:
         sales_collector = SalesIntelCollector(use_cache=self.use_cache)
         signal_collector = SignalCollector(use_cache=self.use_cache)
 
-        # 并行执行
-        results = await asyncio.gather(
+        # 基础3个并行任务
+        tasks = [
             basic_collector.run(seed),
             sales_collector.run(seed),
             signal_collector.run(seed),
-            return_exceptions=True,
-        )
+        ]
+        collector_names = ["BasicInfo", "SalesIntel", "Signal"]
+
+        # 如果启用社交媒体采集，添加第4个并行任务
+        if self.config.has_social_media_config():
+            social_collector = SocialMediaCollector(use_cache=self.use_cache)
+            tasks.append(social_collector.run(seed))
+            collector_names.append("SocialMedia")
+
+        # 并行执行
+        results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # 处理结果
         basic_info = results[0] if not isinstance(results[0], Exception) else None
         sales_intel = results[1] if not isinstance(results[1], Exception) else None
         signals = results[2] if not isinstance(results[2], Exception) else None
+        social_media = None
+        if len(results) > 3:
+            social_media = results[3] if not isinstance(results[3], Exception) else None
 
         # 记录错误
         for i, result in enumerate(results):
             if isinstance(result, Exception):
-                collector_name = ["BasicInfo", "SalesIntel", "Signal"][i]
-                logger.error(f"{collector_name} 收集失败: {result}")
+                logger.error(f"{collector_names[i]} 收集失败: {result}")
 
         return CollectedData(
             seed=seed,
             basic_info=basic_info,
             sales_intel=sales_intel,
             signals=signals,
+            social_media=social_media,
             collected_at=datetime.now(),
         )
 
