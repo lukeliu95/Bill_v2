@@ -21,12 +21,16 @@ description: |
 
 ## 数据格式
 
-企业数据在 `data/enterprises_10000.md`，每行一条记录：
-```
-法人番号：X | 企業名：X | 住所：X | 設立日：X | 資本金：X | 従業員数：X | 代表者：X | 事業内容：X | ウェブサイト：X | アクティビティ数：X | カテゴリID：X
-```
+企业数据在 `data/enterprises.db`（SQLite 数据库），由 `data/Kihonjoho_UTF-8.csv`（579万行）导入。
 
-**解析方式**：`line.split(" | ")` 分割，再用 `part.split("：", 1)` 提取 key-value。
+**数据库结构**：
+- 主表 `enterprises`：houjin_bangou(PK), company_name, address, prefecture, prefecture_code, employee_count, capital, business_summary, business_type, website, established_date 等
+- FTS5 全文索引 `enterprises_fts`：company_name, business_summary, business_type
+- 结构化索引：prefecture_code, employee_count, capital, established_date, (prefecture_code + employee_count) 复合索引
+
+**如果数据库不存在**，先运行 `python3 scripts/import_csv_to_sqlite.py` 导入。
+
+**旧数据源**：`data/enterprises_10000.md`（10000 条）已不再使用，仍保留作为备份。
 
 ## 流程
 
@@ -50,39 +54,30 @@ description: |
 
 **异常处理**：如果 `.features/find-customer/data/` 下没有文件，提示用户先运行 `/find-customer` 生成 ICP 画像。
 
-### Step 2: 构建 Python 三层漏斗查询
+### Step 2: 执行三层漏斗检索
 
-**必须用 Python（不用 bash grep+awk）**，避免字段解析错误。
+**使用 `scripts/enterprise_search.py`**，它内置了完整的三层漏斗逻辑。
 
-#### Layer 1: 硬性条件（地域 + 员工数）
+#### 执行方式
 
-将 `prefectureIds` 映射为都道府県名：
+```bash
+# 方式 A：从 ICP 文件读取条件
+python3 scripts/enterprise_search.py --icp .features/find-customer/data/xxx.md
 
-```
-1=北海道, 2=青森, 3=岩手, 4=宮城, 5=秋田, 6=山形, 7=福島,
-8=茨城, 9=栃木, 10=群馬, 11=埼玉, 12=千葉, 13=東京, 14=神奈川,
-15=新潟, 16=富山, 17=石川, 18=福井, 19=山梨, 20=長野,
-21=岐阜, 22=静岡, 23=愛知, 24=三重, 25=滋賀, 26=京都,
-27=大阪, 28=兵庫, 29=奈良, 30=和歌山,
-31=鳥取, 32=島根, 33=岡山, 34=広島, 35=山口,
-36=徳島, 37=香川, 38=愛媛, 39=高知,
-40=福岡, 41=佐賀, 42=長崎, 43=熊本, 44=大分, 45=宮崎, 46=鹿児島, 47=沖縄
-```
+# 方式 B：直接传 JSON 条件
+python3 scripts/enterprise_search.py --query '{"prefectureIds":[13],"minEmployeeNumber":10,"maxEmployeeNumber":500,"categoryCodes":["G"]}'
 
-**注意**：北海道直接用"北海道"匹配；東京用"東京"；大阪用"大阪"；京都用"京都"。
+# 方式 C：自定义关键词
+python3 scripts/enterprise_search.py --query '...' --keywords "AI,SaaS,クラウド"
 
-```python
-# 地域过滤
-if prefecture_name not in fields.get("住所", ""):
-    continue
-
-# 员工数过滤
-emp_num = int(re.sub(r'[^0-9]', '', fields.get("従業員数", "0")) or '0')
-if emp_num < min_emp or emp_num > max_emp:
-    continue
+# 方式 D：FTS5 全文搜索（自由文本）
+python3 scripts/enterprise_search.py --fts "AI SaaS クラウド"
 ```
 
-可选：成立日过滤、资本金过滤（同理用 Python 解析）。
+#### Layer 1: 硬性条件（SQL 索引查询，毫秒级）
+
+直接用 `prefecture_code` 索引过滤都道府県，用 `employee_count` 索引过滤员工数。
+不再需要字符串匹配住所，不再需要 regex 清洗数字字段。
 
 #### Layer 2: 行业关键词（正向 + 负向排除）
 
@@ -166,7 +161,7 @@ ICP 画像的 `enhancedConditions` 中的 weight 用于调整评分：
 
 ### Step 3: 执行与输出
 
-**执行方式**：用 Bash 工具运行 Python 内联脚本（`python3 << 'PYEOF' ... PYEOF`）。
+**执行方式**：`python3 scripts/enterprise_search.py --icp <ICP文件路径>`，结果自动保存到 `.features/customer-match/data/`。
 
 **分层展示**：
 
@@ -231,9 +226,11 @@ ICP 画像的 `enhancedConditions` 中的 weight 用于调整评分：
 
 ## 注意事項
 
-- **Python 必須**：bash grep+awk は字段解析で壊れやすい → 全て Python で処理
+- **数据库优先**：使用 `data/enterprises.db` (SQLite + FTS5)，579万行企业数据，查询毫秒级
+- **如果 DB 不存在**：运行 `python3 scripts/import_csv_to_sqlite.py` 重建（约 40 秒）
 - カテゴリID は平台内部编号 → categoryCodes で直接マッチ不可
-- 事業内容が短い・汎用的な企業が多い → 正向キーワード「必須命中≥1」でフィルタし、評分で優先度をつける
+- 事業概要（business_summary）が短い・汎用的な企業が多い → 正向キーワード「必須命中≥1」でフィルタし、評分で優先度をつける
 - 設立日が空の企業がある → 設立日フィルタ時は空値を除外しない
 - 結果は必ず `.features/customer-match/data/` に保存する（実時写入原則）
-- 高匹配でも事業内容の記載だけでは精度に限界がある → ユーザーに「官网验证推奨」を提案する
+- 高匹配でも事業概要の記載だけでは精度に限界がある → ユーザーに「官网验证推奨」を提案する
+- **検索脚本路径**：`scripts/enterprise_search.py`（三層漏斗）、`scripts/import_csv_to_sqlite.py`（导入）

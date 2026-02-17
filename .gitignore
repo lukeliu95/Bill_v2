@@ -6,3 +6,8 @@ result.json
 cache/
 __pycache__/
 *.pyc
+# SQLite 数据库（由 CSV 导入生成，1.5GB+）
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/*.csv
