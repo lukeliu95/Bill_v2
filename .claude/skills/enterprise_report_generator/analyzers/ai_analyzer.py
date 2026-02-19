@@ -321,11 +321,15 @@ class AIAnalyzer:
             layer1.business_overview = ai_result["business_overview"]
 
         # 产品
+        valid_categories = {"SaaS", "Hardware", "Service", "Other"}
         if ai_result.get("main_products"):
             for p in ai_result["main_products"]:
+                cat = p.get("category", "Other")
+                if cat not in valid_categories:
+                    cat = "Other"
                 layer1.main_products.append(Product(
                     name=p.get("name", ""),
-                    category=p.get("category", "Other"),
+                    category=cat,
                     description=p.get("description"),
                     target_market=p.get("target_market", "B2B"),
                 ))

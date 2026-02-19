@@ -15,6 +15,16 @@ from .social_media_collector import (
     SocialMediaCollector,
     collect_social_media,
 )
+from .contact_discovery_collector import (
+    ContactDiscoveryCollector,
+    collect_contact_discovery,
+)
+from .contact_models import (
+    ContactDiscoveryRaw,
+    DiscoveredContact,
+    CompanyContactInfo,
+    ContactRoute,
+)
 
 __all__ = [
     "BaseCollector",
@@ -33,4 +43,11 @@ __all__ = [
     # Social Media
     "SocialMediaCollector",
     "collect_social_media",
+    # Contact Discovery
+    "ContactDiscoveryCollector",
+    "collect_contact_discovery",
+    "ContactDiscoveryRaw",
+    "DiscoveredContact",
+    "CompanyContactInfo",
+    "ContactRoute",
 ]

@@ -51,7 +51,7 @@ class DataExporter:
 
         # 创建企业目录
         company_dir = self.output_dir / seed.company_name
-        for subdir in ["company", "people", "news", "signals", "website", "social_media"]:
+        for subdir in ["company", "people", "news", "signals", "website", "social_media", "contacts"]:
             (company_dir / subdir).mkdir(parents=True, exist_ok=True)
 
         # 导出各维度
@@ -61,6 +61,7 @@ class DataExporter:
         self._export_signals(company_dir / "signals", ts_hour, collected_data, report)
         self._export_website(company_dir / "website", ts_hour, collected_data)
         self._export_social_media(company_dir / "social_media", ts_hour, collected_data)
+        self._export_contacts(company_dir / "contacts", ts_hour, collected_data)
 
         # 复制 AI 整合报告到企业目录
         from ..renderers import render_markdown
@@ -684,13 +685,17 @@ class DataExporter:
                     lines.append(f"#### {i}. {title}")
                     lines.append(f"- 日付: {date}")
                     if post.get("likes") is not None:
-                        lines.append(f"- いいね: {post['likes']:,}")
+                        try: lines.append(f"- いいね: {int(post['likes']):,}")
+                        except (ValueError, TypeError): lines.append(f"- いいね: {post['likes']}")
                     if post.get("comments") is not None:
-                        lines.append(f"- コメント: {post['comments']:,}")
+                        try: lines.append(f"- コメント: {int(post['comments']):,}")
+                        except (ValueError, TypeError): lines.append(f"- コメント: {post['comments']}")
                     if post.get("shares") is not None:
-                        lines.append(f"- シェア: {post['shares']:,}")
+                        try: lines.append(f"- シェア: {int(post['shares']):,}")
+                        except (ValueError, TypeError): lines.append(f"- シェア: {post['shares']}")
                     if post.get("views") is not None:
-                        lines.append(f"- 再生数: {post['views']:,}")
+                        try: lines.append(f"- 再生数: {int(post['views']):,}")
+                        except (ValueError, TypeError): lines.append(f"- 再生数: {post['views']}")
                     if post.get("url"):
                         lines.append(f"- URL: {post['url']}")
                     lines.append("")
@@ -710,3 +715,116 @@ class DataExporter:
         filepath = dest / f"{ts}_ソーシャルメディア.md"
         filepath.write_text("\n".join(lines), encoding="utf-8")
         logger.info(f"  ソーシャルメディア: {filepath}")
+
+    # ================================================================
+    # 連絡先情報
+    # ================================================================
+
+    def _export_contacts(
+        self, dest: Path, ts: str,
+        data: CollectedData,
+    ):
+        """导出联系方式发现数据"""
+        cd = data.contact_discovery
+        if not cd:
+            return
+
+        seed = data.seed
+        lines = []
+
+        lines.append(f"# 連絡先情報: {seed.company_name}")
+        lines.append(f"\n> 採集時間: {ts}")
+        lines.append(f"> データソース: {', '.join(cd.sources_used) if cd.sources_used else 'なし'}")
+        lines.append("")
+
+        # 推奨コンタクトルート
+        if cd.recommended_routes:
+            lines.append("## 推奨コンタクトルート")
+            lines.append("")
+            for route in cd.recommended_routes:
+                prob_map = {"high": "高", "medium": "中", "low": "低"}
+                prob = prob_map.get(route.success_probability, "不明")
+                lines.append(f"### {route.rank}. {route.route_type} (成功率: {prob})")
+                lines.append(f"- チャネル: {route.channel}")
+                if route.target_person:
+                    lines.append(f"- ターゲット: {route.target_person}")
+                lines.append(f"- 詳細: {route.detail}")
+                lines.append("")
+
+        # 企業連絡先
+        ci = cd.company_contacts
+        if any([ci.main_phone, ci.main_email, ci.contact_form_url]):
+            lines.append("## 企業連絡先")
+            lines.append("")
+            if ci.main_phone:
+                lines.append(f"- 代表電話: {ci.main_phone}")
+            if ci.main_email:
+                lines.append(f"- 代表メール: {ci.main_email}")
+            if ci.contact_form_url:
+                lines.append(f"- 問い合わせフォーム: {ci.contact_form_url}")
+            if ci.ir_email:
+                lines.append(f"- IR: {ci.ir_email}")
+            if ci.pr_email:
+                lines.append(f"- 広報: {ci.pr_email}")
+            if ci.recruit_email:
+                lines.append(f"- 採用: {ci.recruit_email}")
+            lines.append("")
+
+        # キーパーソン
+        if cd.key_persons:
+            lines.append(f"## キーパーソン (計{len(cd.key_persons)}名)")
+            lines.append("")
+            for i, p in enumerate(cd.key_persons, 1):
+                lines.append(f"### {i}. {p.name}")
+                if p.title:
+                    lines.append(f"- 役職: {p.title}")
+                if p.department:
+                    lines.append(f"- 部門: {p.department}")
+                if p.email:
+                    lines.append(f"- メール: {p.email}")
+                if p.phone:
+                    lines.append(f"- 電話: {p.phone}")
+                if p.linkedin_url:
+                    lines.append(f"- LinkedIn: {p.linkedin_url}")
+                if p.twitter_url:
+                    lines.append(f"- X/Twitter: {p.twitter_url}")
+                lines.append(f"- ソース: {p.source} (信頼度: {p.confidence})")
+                if p.notes:
+                    lines.append(f"- 備考: {p.notes}")
+                lines.append("")
+
+        # Wantedly 結果
+        if cd.wantedly_results:
+            lines.append(f"## Wantedly 検索結果 (共{len(cd.wantedly_results)}件)")
+            lines.append("")
+            for item in cd.wantedly_results:
+                lines.append(f"- **{item.get('title', '')}**")
+                if item.get('snippet'):
+                    lines.append(f"  {item['snippet']}")
+                if item.get('link'):
+                    lines.append(f"  URL: {item['link']}")
+                lines.append("")
+
+        # PR TIMES 結果
+        if cd.prtimes_results:
+            lines.append(f"## PR TIMES 検索結果 (共{len(cd.prtimes_results)}件)")
+            lines.append("")
+            for item in cd.prtimes_results:
+                lines.append(f"- **{item.get('title', '')}**")
+                if item.get('snippet'):
+                    lines.append(f"  {item['snippet']}")
+                if item.get('link'):
+                    lines.append(f"  URL: {item['link']}")
+                lines.append("")
+
+        # エラー
+        if cd.errors:
+            lines.append("## 採集エラー")
+            lines.append("")
+            for err in cd.errors:
+                lines.append(f"- {err}")
+            lines.append("")
+
+        filepath = dest / f"{ts}_連絡先情報.md"
+        filepath.write_text("\n".join(lines), encoding="utf-8")
+        logger.info(f"  連絡先情報: {filepath}")

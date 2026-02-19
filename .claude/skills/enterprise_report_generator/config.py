@@ -90,6 +90,16 @@ class NewsEnrichmentConfig:
 
 
 @dataclass
+class ContactDiscoveryConfig:
+    """联系方式发现配置"""
+    enabled: bool = True                          # 是否启用联系方式自动采集
+    max_linkedin_lookups: int = 3                 # 最多查询几个 LinkedIn 个人资料
+    crawl_contact_pages: bool = True              # 是否爬取官网联系页面
+    search_wantedly: bool = True                  # 是否搜索 Wantedly
+    search_prtimes: bool = True                   # 是否搜索 PR TIMES
+
+
+@dataclass
 class CacheConfig:
     """缓存配置"""
     enabled: bool = True
@@ -113,6 +123,7 @@ class Config:
     cache: CacheConfig = field(default_factory=CacheConfig)
     brightdata: BrightDataConfig = field(default_factory=BrightDataConfig)
     news_enrichment: NewsEnrichmentConfig = field(default_factory=NewsEnrichmentConfig)
+    contact_discovery: ContactDiscoveryConfig = field(default_factory=ContactDiscoveryConfig)
 
     # 日志级别
     log_level: str = field(default_factory=lambda: os.getenv("LOG_LEVEL", "INFO"))

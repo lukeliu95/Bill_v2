@@ -21,40 +21,45 @@
 
 | 用户意图 | 识别信号 | 动作 |
 |---------|---------|------|
-| **找客户（特征描述）** | "帮我找做XX的企业"、"XX行业的客户"、描述某类企业特征、"想找XX方面的公司" | → `/find-customer` |
-| **产品分析** | 提供官网 URL、产品资料、"帮我分析这个产品" | → `/find-customer` |
-| **匹配客户** | find-customer 输出后 / "跑一下筛选" / "匹配客户" / "帮我匹配" | → `/customer-match` |
-| **生成企业报告** | "帮我生成报告" / "调查一下XX公司" / "出一份营业报告" / 批量生成 | → `/enterprise-report-generator` |
-| **深挖联系方式** | "查联系方式" / "找到XX的邮箱" / "获取联系方式" / 报告生成后补充人物信息 | → BrightData API + 社交网络 + 多源搜索，更新 people/ |
+| **完整找客户流程** | 产品URL + "帮我找客户"、"从头开始找客户" | → `/sales-agent` (Pipeline A) |
+| **调查企业+联系方式** | 企業名 + "调查/生成报告/出报告" | → `/sales-agent` (Pipeline B) |
+| **找联系方式/决策人** | "找联系方式" / "找决策人" / "查XX的邮箱" | → `/sales-agent` (Pipeline C) |
+| **找客户（仅ICP）** | "帮我分析产品定位"、只需ICP不需后续 | → `/find-customer` |
+| **匹配客户（仅匹配）** | "跑一下筛选" / "匹配客户" / "帮我匹配" | → `/customer-match` |
+| **仅生成报告** | "生成报告但不查联系方式" | → `/enterprise-report-generator` |
 | **查具体企业** | 指定企业名、法人番号、只需基本信息 | → SQLite 直接查询 `data/enterprises.db` |
 | **自由搜索企业** | "帮我找做XX的企业"（不需要ICP，直接搜） | → `scripts/enterprise_search.py --fts` 或 SQL 直查 |
 
-**原则：描述特征找客户 → skill，要深度调查 → 报告生成，指名道姓查基本信息 → 直接查。**
-**联系方式深挖**：报告生成后自动包含基础人物信息，用户可额外要求通过社交网络（LinkedIn/Instagram/X/採用サイト/商务平台）深挖个人联系方式。
+**原则：完整流程走 `/sales-agent`，单步操作走各自 skill，查基本信息 → 直接查。**
+**`/sales-agent` 是默认推荐入口**：ICP → 匹配 → 报告 → 联系方式一条龙。
+**联系方式自动采集**：报告生成时默认包含联系方式采集（Serper + Wantedly + PR TIMES + 官网 + LinkedIn）。
 **简单搜索 vs ICP 分析**：用户只是想找某类企业（如"做SaaS給与的企业"）→ 直接数据库搜索 + Web 补充，不走完整 ICP 流程。
-拿不准时，默认走 `/find-customer` skill。宁可多做分析，不可漏掉 ICP。
+拿不准时，默认走 `/sales-agent`。
 
 ---
 
-# 核心功能 — 3 个 Agent
+# 核心功能 — 4 个 Agent
 
 ```
+/sales-agent                — 统一入口：ICP → 匹配 → 报告 → 联系方式（推荐）
 /find-customer              — 分析产品定位，构建 ICP 画像（MD + 嵌入JSON）
 /customer-match             — 基于 ICP 画像，在企业数据库中匹配潜在客户
-/enterprise-report-generator — 对目标企业生成深度营业报告（6维度MD + 汇总报告）
+/enterprise-report-generator — 对目标企业生成深度营业报告（7维度MD + 汇总报告 + 联系方式）
 ```
 
-**数据流**：
+**数据流**（`/sales-agent` 自动串联）：
 ```
 /find-customer → .features/find-customer/data/（ICP画像）
        ↓
 /customer-match → .features/customer-match/data/（匹配企业列表）
        ↓
-/enterprise-report-generator → output/{企業名}/（报告 + 人物 + 官网 + 社交 + 信号）
+/enterprise-report-generator → output/{企業名}/（报告 + 人物 + 官网 + 社交 + 信号 + 联系方式）
                              → .features/enterprise-report/MEMORY.md（生成记录）
        ↓
-报告生成后可手动深挖 → 社交网络调研 + 联系方式发掘 → 更新 people/
+汇总展示 → 可选手動深挖高価値ターゲット
 ```
+
+**管线状态**: `.features/sales-agent/data/{ts}_pipeline.md`（支持断点续跑）
 
 ### enterprise-report-generator 采集能力
 
@@ -64,6 +69,7 @@
 | SalesIntelCollector | Serper + BrightData LinkedIn | 关键人物、组织结构、LinkedIn 员工 |
 | SignalCollector | Serper + 招聘网站 | 商机信号、采用动向、投资意向 |
 | SocialMediaCollector | Serper + BrightData (IG/TikTok/X/YouTube/FB/Reddit) | 社交媒体账号、粉丝数、最新动态 |
+| ContactDiscoveryCollector | Serper + Wantedly + PR TIMES + 官网 + LinkedIn | 联系方式、推奨コンタクトルート |
 
 **报告生成后的手动深挖能力**：
 - 通过 BrightData API 获取 LinkedIn 个人详细资料（email/phone）
@@ -130,6 +136,7 @@
 - `find-customer` — ICP 客户画像分析
 - `customer-match` — 客户匹配结果
 - `enterprise-report` — 企业报告生成记录
+- `sales-agent` — 统一销售代理管线运行记录
 
 每个 feature 的 MEMORY.md 结构：
 

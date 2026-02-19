@@ -4,7 +4,7 @@
 基于规格文档第四章定义的数据结构
 """
 from datetime import datetime
-from typing import Optional, Literal
+from typing import Any, Optional, Literal
 from pydantic import BaseModel, Field
 
 
@@ -374,4 +374,5 @@ class CollectedData(BaseModel):
     sales_intel: SalesIntelRaw = Field(default_factory=SalesIntelRaw)
     signals: SignalsRaw = Field(default_factory=SignalsRaw)
     social_media: Optional[SocialMediaRaw] = Field(None, description="社交媒体数据")
+    contact_discovery: Optional[Any] = Field(None, description="联系方式发现数据 (ContactDiscoveryRaw)")
     collected_at: datetime = Field(default_factory=datetime.now)

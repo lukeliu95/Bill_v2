@@ -22,6 +22,8 @@ from .collectors import (
     SalesIntelCollector,
     SignalCollector,
     SocialMediaCollector,
+    ContactDiscoveryCollector,
+    collect_contact_discovery,
 )
 from .analyzers import AIAnalyzer
 from .validators.quality_checker import QualityChecker, QualityCheckResult
@@ -42,14 +44,16 @@ class ReportGenerator:
     编排整个报告生成流程
     """
 
-    def __init__(self, use_cache: bool = True):
+    def __init__(self, use_cache: bool = True, enable_contacts: bool = True):
         """
         初始化报告生成器
 
         Args:
             use_cache: 是否使用缓存
+            enable_contacts: 是否启用联系方式自动采集
         """
         self.use_cache = use_cache
+        self.enable_contacts = enable_contacts
         self.config = get_config()
 
         # 验证配置
@@ -154,12 +158,27 @@ class ReportGenerator:
             if isinstance(result, Exception):
                 logger.error(f"{collector_names[i]} 收集失败: {result}")
 
+        # Phase 2: 联系方式发现（依赖 SalesIntel 的 LinkedIn 数据）
+        contact_discovery = None
+        if self.enable_contacts and self.config.contact_discovery.enabled:
+            logger.info("Phase 2: 联系方式自动采集...")
+            try:
+                contact_collector = ContactDiscoveryCollector(
+                    use_cache=self.use_cache,
+                    sales_intel_data=sales_intel,
+                    max_linkedin_lookups=self.config.contact_discovery.max_linkedin_lookups,
+                )
+                contact_discovery = await contact_collector.run(seed)
+            except Exception as e:
+                logger.error(f"ContactDiscovery 收集失败: {e}")
+
         return CollectedData(
             seed=seed,
             basic_info=basic_info,
             sales_intel=sales_intel,
             signals=signals,
             social_media=social_media,
+            contact_discovery=contact_discovery,
             collected_at=datetime.now(),
         )
 
@@ -175,6 +194,7 @@ async def generate_report(
     address: Optional[str] = None,
     use_cache: bool = True,
     save_to_file: bool = True,
+    enable_contacts: bool = True,
 ) -> tuple[EnterpriseReport, QualityCheckResult]:
     """
     生成企业报告的便捷函数
@@ -186,6 +206,7 @@ async def generate_report(
         address: 地址 (可选)
         use_cache: 是否使用缓存
         save_to_file: 是否保存文件
+        enable_contacts: 是否启用联系方式自动采集
 
     Returns:
         (报告, 质量检查结果)
@@ -197,7 +218,7 @@ async def generate_report(
         address=address,
     )
 
-    generator = ReportGenerator(use_cache=use_cache)
+    generator = ReportGenerator(use_cache=use_cache, enable_contacts=enable_contacts)
     return await generator.generate(seed, save_to_file=save_to_file)
 
 
@@ -242,7 +263,22 @@ def main():
         action="store_true",
         help="不保存到文件"
     )
+    # 联系方式采集选项
+    contact_group = parser.add_mutually_exclusive_group()
+    contact_group.add_argument(
+        "--contacts",
+        action="store_true",
+        default=True,
+        help="启用联系方式自动采集 (默认)"
+    )
+    contact_group.add_argument(
+        "--no-contacts",
+        action="store_true",
+        help="禁用联系方式自动采集"
+    )
     args = parser.parse_args()
+
+    enable_contacts = not args.no_contacts
 
     # 运行
     async def run():
@@ -253,6 +289,7 @@ def main():
             address=args.address,
             use_cache=not args.no_cache,
             save_to_file=not args.no_save,
+            enable_contacts=enable_contacts,
         )
 
         # 打印质量信息

@@ -89,6 +89,7 @@
 output/{企業名}/
 ├── report_{timestamp}.md          — 汇总营业报告（含 AI 分析）
 ├── people/{timestamp}_人物档案.md  — 关键人物 + 联系方式 + コンタクトルート
+├── contacts/{timestamp}_連絡先情報.md — 自动采集的联系方式 + 推奨コンタクトルート
 ├── website/{timestamp}_官网内容.md — 官网爬取内容
 ├── social_media/{timestamp}_ソーシャルメディア.md — SNS 账号 + 动态
 ├── signals/{timestamp}_商机信号.md — 商机评分 + 采用/融资信号
