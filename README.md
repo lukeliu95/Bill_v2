@@ -110,6 +110,16 @@ Bill_v2/
 │   ├── customer-match/data/     # 匹配结果
 │   ├── find-customer/data/      # ICP 画像
 │   └── enterprise-report/       # 生成的报告记录
+├── output/                      # 企业报告输出目录
+│   └── {企業名}/                 # 每家企业独立目录
+│       ├── report_{timestamp}.md                      # 汇总营业报告（含 AI 分析）
+│       ├── company/{timestamp}_公司信息.md             # 企业基本信息
+│       ├── people/{timestamp}_人物档案.md              # 关键人物 + 联系方式
+│       ├── contacts/{timestamp}_連絡先情報.md          # 联系方式 + 推奨コンタクトルート
+│       ├── website/{timestamp}_官网内容.md             # 官网爬取内容
+│       ├── social_media/{timestamp}_ソーシャルメディア.md # SNS 账号 + 最新动态
+│       ├── signals/{timestamp}_商机信号.md             # 商机评分 + 采用/融资信号
+│       └── news/{timestamp}_新闻动态.md               # 新闻 + PR TIMES 动态
 ├── scripts/                     # 实用脚本
 │   ├── enterprise_search.py     # 搜索逻辑实现
 │   └── import_csv_to_sqlite.py  # 数据导入工具
