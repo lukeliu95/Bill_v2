@@ -102,30 +102,84 @@ python -m .claude.skills.enterprise_report_generator.main \
 
 ```
 Bill_v2/
-├── .claude/skills/              # 核心技能实现
-│   ├── customer-match/          # 客户匹配 Skill
-│   ├── enterprise_report_generator/ # 报告生成 Skill (含 Python 源码)
-│   └── find-customer/           # ICP 分析 Skill
-├── .features/                   # 业务数据与记忆
-│   ├── customer-match/data/     # 匹配结果
-│   ├── find-customer/data/      # ICP 画像
-│   └── enterprise-report/       # 生成的报告记录
-├── output/                      # 企业报告输出目录
-│   └── {企業名}/                 # 每家企业独立目录
-│       ├── report_{timestamp}.md                      # 汇总营业报告（含 AI 分析）
-│       ├── company/{timestamp}_公司信息.md             # 企业基本信息
-│       ├── people/{timestamp}_人物档案.md              # 关键人物 + 联系方式
-│       ├── contacts/{timestamp}_連絡先情報.md          # 联系方式 + 推奨コンタクトルート
-│       ├── website/{timestamp}_官网内容.md             # 官网爬取内容
-│       ├── social_media/{timestamp}_ソーシャルメディア.md # SNS 账号 + 最新动态
-│       ├── signals/{timestamp}_商机信号.md             # 商机评分 + 采用/融资信号
-│       └── news/{timestamp}_新闻动态.md               # 新闻 + PR TIMES 动态
-├── scripts/                     # 实用脚本
-│   ├── enterprise_search.py     # 搜索逻辑实现
-│   └── import_csv_to_sqlite.py  # 数据导入工具
-├── data/                        # 基础数据 (SQLite DB, CSV)
-├── CLAUDE.md                    # 项目开发指南与 Prompt
-└── .env                         # 环境变量配置
+├── CLAUDE.md                        # 项目开发指南与意图路由规则
+├── .env                             # 环境变量配置（API Key）
+│
+├── context/                         # 项目上下文文档
+│   ├── soul.md                      # Alan 的身份与世界观
+│   ├── user.md                      # Luke 的偏好与预算约束
+│   └── product.md                   # 产品功能与数据库规格
+│
+├── .claude/skills/                  # 核心 Skill 实现
+│   ├── find-customer/               # ICP 画像构建 Skill
+│   │   ├── SKILL.md                 # Skill 说明与执行流程
+│   │   └── references/              # 参考数据（産業分類、都道府県等）
+│   ├── customer-match/              # 客户匹配 Skill
+│   │   └── SKILL.md
+│   ├── sales-agent/                 # 统一销售代理 Skill（推荐入口）
+│   │   └── SKILL.md
+│   └── enterprise_report_generator/ # 企业报告生成 Skill（Python 实现）
+│       ├── SKILL.md / README.md
+│       ├── main.py                  # 入口：并行调度各采集器
+│       ├── config.py                # 全局配置（API Key、超时等）
+│       ├── collectors/              # 数据采集层
+│       │   ├── basic_info_collector.py      # gBizINFO + 官网基本信息
+│       │   ├── sales_intel_collector.py     # LinkedIn + 人物情报
+│       │   ├── signal_collector.py          # 商机信号（招聘/投资）
+│       │   ├── social_media_collector.py    # SNS 账号 + 动态
+│       │   └── contact_discovery_collector.py # 联系方式深挖
+│       ├── analyzers/               # AI 分析层（Gemini）
+│       ├── renderers/               # Markdown 渲染层
+│       ├── exporters/               # 文件导出层
+│       ├── models/                  # 数据模型（Schema + Tag词汇表）
+│       ├── prompts/                 # Gemini Prompt 模板
+│       ├── utils/                   # 工具层（API 客户端）
+│       │   ├── brightdata_client.py
+│       │   ├── gbizinfo_client.py
+│       │   ├── gemini_client.py
+│       │   ├── serper_client.py
+│       │   └── cache.py             # API 响应本地缓存
+│       ├── validators/              # 报告质量检查
+│       └── tests/                   # E2E + 单元测试
+│
+├── .features/                       # 业务数据与模块记忆
+│   ├── find-customer/
+│   │   ├── MEMORY.md                # 模块运行记忆
+│   │   └── data/{timestamp}.md      # ICP 画像（MD + 嵌入 JSON）
+│   ├── customer-match/
+│   │   ├── MEMORY.md
+│   │   └── data/{timestamp}.md      # 匹配企业列表（分层评分）
+│   ├── enterprise-report/
+│   │   └── MEMORY.md                # 报告生成历史索引
+│   └── sales-agent/
+│       ├── MEMORY.md
+│       └── data/{timestamp}_pipeline.md  # 管线运行状态（支持断点续跑）
+│
+├── output/                          # 企业报告输出（每家企业独立目录）
+│   └── {企業名}/
+│       ├── report_{timestamp}.md                       # 汇总营业报告（含 AI 分析）
+│       ├── company/{timestamp}_公司信息.md              # 企业基本信息
+│       ├── people/{timestamp}_人物档案.md               # 关键人物 + コンタクトルート
+│       ├── contacts/{timestamp}_連絡先情報.md           # 联系方式 + 推奨アプローチ
+│       ├── website/{timestamp}_官网内容.md              # 官网爬取内容
+│       ├── social_media/{timestamp}_ソーシャルメディア.md  # SNS 账号 + 最新动态
+│       ├── signals/{timestamp}_商机信号.md              # 商机评分 + 采用/融资信号
+│       └── news/{timestamp}_新闻动态.md                # 新闻 + PR TIMES 动态
+│
+├── scripts/                         # 命令行工具
+│   ├── enterprise_search.py         # 企业数据库检索（三层漏斗）
+│   └── import_csv_to_sqlite.py      # CSV → SQLite 导入工具
+│
+├── data/                            # 基础数据（已 .gitignore）
+│   ├── enterprises.db               # SQLite 主数据库（579万法人）
+│   └── Kihonjoho_UTF-8.csv          # gBizINFO 原始数据
+│
+├── cache/                           # API 响应缓存（JSON，本地复用）
+├── loop/
+│   └── state.md                     # 会话运行状态（上次做了什么/待处理）
+└── Docs/                            # 设计文档
+    ├── enterprise-search-design.md
+    └── jp-enterprise-query-directory-design.md
 ```
 
 ## 开发指南
